@@ -346,11 +346,11 @@ export function test_NativeSetter_called_only_once_with_localValue() {
     testView.custom = "testViewValue";
 
     helper.buildUIAndRunTest(testView, () => {
-        TKUnit.assertEqual(testView.cssPropNativeValue, "testCssValue", "Native value");
-        TKUnit.assertEqual(testView.viewPropNativeValue, "testViewValue", "Native value");
-
         TKUnit.assertEqual(testView.cssPropCounter, 1, "NativeSetter count called once");
         TKUnit.assertEqual(testView.viewPropCounter, 1, "NativeSetter count called once");
+
+        TKUnit.assertEqual(testView.cssPropNativeValue, "testCssValue", "Native value");
+        TKUnit.assertEqual(testView.viewPropNativeValue, "testViewValue", "Native value");
     });
 };
 

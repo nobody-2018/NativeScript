@@ -555,6 +555,9 @@ export class FrameBase extends CustomLayoutView implements FrameDefinition {
     }
 }
 
+// TODO: Only the topmost frame shouldn't care about its parent... It is in visible visual tree by default event without parent.
+FrameBase.prototype._suspendNativeUpdatesCount = CustomLayoutView.prototype._suspendNativeUpdatesCount - 1;
+
 export function topmost(): FrameBase {
     if (frameStack.length > 0) {
         return frameStack[frameStack.length - 1];

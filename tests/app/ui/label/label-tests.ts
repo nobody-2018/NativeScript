@@ -217,7 +217,8 @@ export class LabelTest extends testModule.UITest<LabelModule.Label> {
         let expBackgroundColor;
 
         this.testPage.css = testCss;
-        this.waitUntilTestElementIsLoaded();
+        this.waitUntilTestElementLayoutIsValid();
+
         const testLabel = label;
 
         if (testLabel.android) {
@@ -245,8 +246,7 @@ export class LabelTest extends testModule.UITest<LabelModule.Label> {
             expColor = new colorModule.Color(color);
             TKUnit.assertEqual(normalColor.hex, expColor.hex);
 
-            const cgColor = (<UILabel>testLabel.ios).layer.backgroundColor;
-            const uiColor = UIColor.colorWithCGColor(cgColor);
+            const uiColor = (<UILabel>testLabel.ios).backgroundColor;
             actualBackgroundColor = helper.getColor(uiColor);
             expBackgroundColor = new colorModule.Color(backgroundColor);
             TKUnit.assertEqual(actualBackgroundColor.hex, expBackgroundColor.hex);

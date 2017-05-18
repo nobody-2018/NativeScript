@@ -6,7 +6,7 @@ import { Order, FlexGrow, FlexShrink, FlexWrapBefore, AlignSelf } from "../../la
 import { KeyframeAnimation } from "../../animation/keyframe-animation";
 
 // Types.
-import { Property, InheritedProperty, Style, clearInheritedProperties, propagateInheritableProperties, propagateInheritableCssProperties, resetCSSProperties, initNativeView, resetNativeView } from "../properties";
+import { Property, CssProperty, CssAnimationProperty, InheritedProperty, Style, clearInheritedProperties, propagateInheritableProperties, propagateInheritableCssProperties, resetCSSProperties, initNativeView, resetNativeView } from "../properties";
 import { Binding, BindingOptions, Observable, WrappedValue, PropertyChangeData, traceEnabled, traceWrite, traceCategories, traceNotifyEvent } from "../bindable";
 import { isIOS, isAndroid } from "../../../platform";
 import { layout } from "../../../utils/utils";
@@ -139,9 +139,9 @@ export abstract class ViewBase extends Observable implements ViewBaseDefinition 
     private _registeredAnimations: Array<KeyframeAnimation>;
     private _visualState: string;
     private _inlineStyleSelector: SelectorCore;
+    private __nativeView: any;
 
     public bindingContext: any;
-    public nativeView: any;
     public parent: ViewBase;
     public isCollapsed; // Default(false) set in prototype
 
@@ -153,6 +153,8 @@ export abstract class ViewBase extends Observable implements ViewBaseDefinition 
     public _isAddedToNativeVisualTree: boolean;
     public _cssState: ssm.CssState;
     public _styleScope: ssm.StyleScope;
+    public _suspendedUpdates: { [propertyName: string]: Property<ViewBase, any> | CssProperty<Style, any> | CssAnimationProperty<Style, any> };
+    public _suspendNativeUpdatesCount: number;
 
     // Dynamic properties.
     left: Length;
@@ -242,6 +244,27 @@ export abstract class ViewBase extends Observable implements ViewBaseDefinition 
         this._inlineStyleSelector = value;
     }
 
+    get nativeView() {
+        return this.__nativeView;
+    }
+    set nativeView(newValue: any) {
+        if (this.__nativeView === newValue) {
+            return;
+        }
+
+        const oldValue = this.__nativeView;
+        this.__nativeView = newValue;
+
+        // This will force full update on native setters when resuming native updates.
+        this._suspendedUpdates = undefined;
+
+        if (oldValue && !newValue) {
+            this._suspendNativeUpdates();
+        } else if (!oldValue && newValue) {
+            this._resumeNativeUpdates();
+        }
+    }
+
     getViewById<T extends ViewBaseDefinition>(id: string): T {
         return <T>getViewById(this, id);
     }
@@ -279,13 +302,21 @@ export abstract class ViewBase extends Observable implements ViewBaseDefinition 
         this._emit("unloaded");
     }
 
-    public _batchUpdateScope: number;
+    public _suspendNativeUpdates(): void {
+        this._suspendNativeUpdatesCount++;
+    }
+    public _resumeNativeUpdates(): void {
+        this._suspendNativeUpdatesCount--;
+        if (!this._suspendNativeUpdatesCount) {
+            this.onResumeNativeUpdates();
+        }
+    }
     public _batchUpdate<T>(callback: () => T): T {
         try {
-            ++this._batchUpdateScope;
+            this._suspendNativeUpdates();
             return callback();
         } finally {
-            --this._batchUpdateScope;
+            this._resumeNativeUpdates();
         }
     }
 
@@ -624,75 +655,76 @@ export abstract class ViewBase extends Observable implements ViewBaseDefinition 
     }
 
     public _setupUI(context: android.content.Context, atIndex?: number, parentIsLoaded?: boolean) {
-        traceNotifyEvent(this, "_setupUI");
-        if (traceEnabled()) {
-            traceWrite(`${this}._setupUI(${context})`, traceCategories.VisualTreeEvents);
-        }
+        try {
+            this._suspendNativeUpdates();
 
-        if (this._context === context) {
-            return;
-        }
-
-        this._context = context;
-        traceNotifyEvent(this, "_onContextChanged");
-
-        let currentNativeView = this.nativeView;
-        if (isAndroid) {
-            let nativeView: android.view.View;
-            if (this.recycleNativeView) {
-                nativeView = <android.view.View>getNativeView(context, this.typeName);
+            traceNotifyEvent(this, "_setupUI");
+            if (traceEnabled()) {
+                traceWrite(`${this}._setupUI(${context})`, traceCategories.VisualTreeEvents);
             }
 
-            if (!nativeView) {
-                nativeView = <android.view.View>this.createNativeView();
+            if (this._context === context) {
+                return;
             }
 
-            this._androidView = this.nativeView = nativeView;
-            if (nativeView) {
-                let result: android.graphics.Rect = (<any>nativeView).defaultPaddings;
-                if (result === undefined) {
-                    result = org.nativescript.widgets.ViewHelper.getPadding(nativeView);
-                    (<any>nativeView).defaultPaddings = result;
+            this._context = context;
+            traceNotifyEvent(this, "_onContextChanged");
+
+            let currentNativeView = this.nativeView;
+            if (isAndroid) {
+                let nativeView: android.view.View;
+                if (this.recycleNativeView) {
+                    nativeView = <android.view.View>getNativeView(context, this.typeName);
                 }
 
-                this._defaultPaddingTop = result.top;
-                this._defaultPaddingRight = result.right;
-                this._defaultPaddingBottom = result.bottom;
-                this._defaultPaddingLeft = result.left;
+                if (!nativeView) {
+                    nativeView = <android.view.View>this.createNativeView();
+                }
 
-                const style = this.style;
-                if (!paddingTopProperty.isSet(style)) {
-                    this.effectivePaddingTop = this._defaultPaddingTop;
+                this._androidView = this.nativeView = nativeView;
+                if (nativeView) {
+                    let result: android.graphics.Rect = (<any>nativeView).defaultPaddings;
+                    if (result === undefined) {
+                        result = org.nativescript.widgets.ViewHelper.getPadding(nativeView);
+                        (<any>nativeView).defaultPaddings = result;
+                    }
+
+                    this._defaultPaddingTop = result.top;
+                    this._defaultPaddingRight = result.right;
+                    this._defaultPaddingBottom = result.bottom;
+                    this._defaultPaddingLeft = result.left;
+
+                    const style = this.style;
+                    if (!paddingTopProperty.isSet(style)) {
+                        this.effectivePaddingTop = this._defaultPaddingTop;
+                    }
+                    if (!paddingRightProperty.isSet(style)) {
+                        this.effectivePaddingRight = this._defaultPaddingRight;
+                    }
+                    if (!paddingBottomProperty.isSet(style)) {
+                        this.effectivePaddingBottom = this._defaultPaddingBottom;
+                    }
+                    if (!paddingLeftProperty.isSet(style)) {
+                        this.effectivePaddingLeft = this._defaultPaddingLeft;
+                    }
                 }
-                if (!paddingRightProperty.isSet(style)) {
-                    this.effectivePaddingRight = this._defaultPaddingRight;
-                }
-                if (!paddingBottomProperty.isSet(style)) {
-                    this.effectivePaddingBottom = this._defaultPaddingBottom;
-                }
-                if (!paddingLeftProperty.isSet(style)) {
-                    this.effectivePaddingLeft = this._defaultPaddingLeft;
+            } else {
+                // TODO: Implement _createNativeView for iOS
+                const nativeView = this.createNativeView();
+                if (!currentNativeView && nativeView) {
+                    this.nativeView = this._iosView = nativeView;
                 }
             }
-        } else {
-            // TODO: Implement _createNativeView for iOS
-            const nativeView = this.createNativeView();
-            if (!currentNativeView && nativeView) {
-                this.nativeView = this._iosView = nativeView;
+
+            this.initNativeView();
+
+            if (this.parent) {
+                let nativeIndex = this.parent._childIndexToNativeChildIndex(atIndex);
+                this._isAddedToNativeVisualTree = this.parent._addViewToNativeVisualTree(this, nativeIndex);
             }
-        }
-
-        this.initNativeView();
-
-        if (this.parent) {
-            let nativeIndex = this.parent._childIndexToNativeChildIndex(atIndex);
-            this._isAddedToNativeVisualTree = this.parent._addViewToNativeVisualTree(this, nativeIndex);
-        }
-
-        if (this.nativeView) {
-            if (currentNativeView !== this.nativeView) {
-                initNativeView(this);
-            }
+        } finally {
+            // This may apply native setters.
+            this._resumeNativeUpdates();
         }
 
         this.eachChild((child) => {
@@ -798,6 +830,8 @@ export abstract class ViewBase extends Observable implements ViewBaseDefinition 
     }
 
     public _parentChanged(oldParent: ViewBase): void {
+        const newParent = this.parent;
+
         //Overridden
         if (oldParent) {
             clearInheritedProperties(this);
@@ -805,10 +839,20 @@ export abstract class ViewBase extends Observable implements ViewBaseDefinition 
                 oldParent.off("bindingContextChange", this.bindingContextChanged, this);
             }
         } else if (this.shouldAddHandlerToParentBindingContextChanged) {
-            const parent = this.parent;
-            parent.on("bindingContextChange", this.bindingContextChanged, this);
-            this.bindings.get("bindingContext").bind(parent.bindingContext);
+            newParent.on("bindingContextChange", this.bindingContextChanged, this);
+            this.bindings.get("bindingContext").bind(newParent.bindingContext);
         }
+
+        if (!newParent && oldParent) {
+            this._suspendNativeUpdates();
+        } else if (newParent && !oldParent) {
+            this._resumeNativeUpdates();
+        }
+    }
+
+    public onResumeNativeUpdates(): void {
+        // Apply native setters...
+        initNativeView(this);
     }
 
     public _registerAnimation(animation: KeyframeAnimation) {
@@ -865,7 +909,10 @@ ViewBase.prototype._defaultPaddingBottom = 0;
 ViewBase.prototype._defaultPaddingLeft = 0;
 ViewBase.prototype._isViewBase = true;
 
-ViewBase.prototype._batchUpdateScope = 0;
+// Removing from visual tree does +1, adding to visual tree does -1, see parentChanged
+// Removing the nativeView does +1, adding the nativeView does -1, see set nativeView
+// Initially launch with 2, native updates wont fire unless both added to the JS visual tree and got nativeView.
+ViewBase.prototype._suspendNativeUpdatesCount = 2;
 
 export const bindingContextProperty = new InheritedProperty<ViewBase, any>({ name: "bindingContext" });
 bindingContextProperty.register(ViewBase);
