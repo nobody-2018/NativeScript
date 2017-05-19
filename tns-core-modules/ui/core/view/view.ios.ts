@@ -212,7 +212,7 @@ export class View extends ViewCommon {
 
         let myPointInWindow = this.nativeView.convertPointToView(this.nativeView.bounds.origin, null);
         let otherPointInWindow = otherView.nativeView.convertPointToView(otherView.nativeView.bounds.origin, null);
-        return {
+        return {  
             x: myPointInWindow.x - otherPointInWindow.x,
             y: myPointInWindow.y - otherPointInWindow.y
         };
@@ -225,7 +225,9 @@ export class View extends ViewCommon {
         }
 
         let background = this.style.backgroundInternal;
-        if (!background.isEmpty()) {
+        const backgroundDependsOnSize = background.image || !background.hasUniformBorder();
+
+        if (this._nativeBackgroundInvalid || backgroundDependsOnSize) {
             this._redrawNativeBackground(background);
         }
 

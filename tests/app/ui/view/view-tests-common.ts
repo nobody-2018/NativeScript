@@ -809,6 +809,7 @@ export function testSetInlineStyle() {
 export function testBorderWidth() {
     helper.buildUIAndRunTest(_createLabelWithBorder(), function (views: Array<View>) {
         const lbl = views[0];
+        helper.waitUntilLayoutReady(lbl);
         const expectedValue = Math.round(<number>lbl.borderWidth * utils.layout.getDisplayDensity());
         const actualValue = definition.getUniformNativeBorderWidth(lbl);
         TKUnit.assertAreClose(actualValue, expectedValue, 0.01, "borderWidth");
@@ -818,7 +819,7 @@ export function testBorderWidth() {
 export function testCornerRadius() {
     helper.buildUIAndRunTest(_createLabelWithBorder(), function (views: Array<View>) {
         const lbl = views[0];
-        TKUnit.waitUntilReady(() => lbl.isLayoutValid);
+        helper.waitUntilLayoutReady(lbl);
         const expectedValue = Math.round(<number>lbl.borderRadius * utils.layout.getDisplayDensity());
         const actualValue = definition.getUniformNativeCornerRadius(lbl);
         TKUnit.assertAreClose(actualValue, expectedValue, 0.01, "borderRadius");
@@ -828,6 +829,7 @@ export function testCornerRadius() {
 export function testBorderColor() {
     helper.buildUIAndRunTest(_createLabelWithBorder(), function (views: Array<View>) {
         const lbl = views[0];
+        helper.waitUntilLayoutReady(lbl);
         TKUnit.assertEqual(definition.checkUniformNativeBorderColor(lbl), true, "BorderColor not applied correctly!");
     });
 };
@@ -835,6 +837,7 @@ export function testBorderColor() {
 export function testBackgroundColor() {
     helper.buildUIAndRunTest(_createLabelWithBorder(), function (views: Array<View>) {
         const lbl = views[0];
+        helper.waitUntilLayoutReady(lbl);
         TKUnit.assertEqual(definition.checkNativeBackgroundColor(lbl), true, "BackgroundColor not applied correctly!");
     });
 };
@@ -891,7 +894,7 @@ export function test_getLocationRelativeToOtherView() {
     a1.addChild(a2);
 
     helper.buildUIAndRunTest(a1, function (views: Array<View>) {
-        TKUnit.waitUntilReady(() => a1.isLayoutValid);
+        helper.waitUntilLayoutReady(a1);
 
         const labelInA2 = label.getLocationRelativeTo(a2);
         const labelInA1 = label.getLocationRelativeTo(a1);
@@ -913,7 +916,7 @@ export function test_getActualSize() {
     label.width = 100;
     label.height = 200;
     helper.buildUIAndRunTest(label, function (views: Array<View>) {
-        TKUnit.waitUntilReady(() => label.isLayoutValid);
+        helper.waitUntilLayoutReady(label);
         const actualSize = label.getActualSize();
         TKUnit.assertAreClose(actualSize.width, 100, delta, "actualSize.width");
         TKUnit.assertAreClose(actualSize.height, 200, delta, "actualSize.height");
@@ -924,6 +927,6 @@ export function test_background_image_doesnt_throw() {
    var btn = new Button();
    btn.style.backgroundImage = 'https://www.bodybuilding.com/images/2016/june/8-benefits-to-working-out-in-the-morning-header-v2-830x467.jpg';
    helper.buildUIAndRunTest(btn, function (views: Array<View>) {
-        TKUnit.waitUntilReady(() => btn.isLayoutValid);
+       helper.waitUntilLayoutReady(btn);
     });
 }

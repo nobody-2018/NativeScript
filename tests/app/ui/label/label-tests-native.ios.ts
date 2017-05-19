@@ -17,10 +17,6 @@ export function getNativeTextAlignment(label: labelModule.Label): string {
 }
 
 export function getNativeBackgroundColor(label: labelModule.Label): colorModule.Color {
-    var layer = (<UILabel>label.ios).layer;
-    if (!layer || !layer.backgroundColor) {
-        return undefined;
-    }
-    var uiColor = UIColor.colorWithCGColor(layer.backgroundColor);
+    var uiColor = (<UILabel>label.ios).backgroundColor;
     return getColor(uiColor);
 }

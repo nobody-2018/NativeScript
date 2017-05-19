@@ -125,6 +125,8 @@ export class LabelTest extends testModule.UITest<LabelModule.Label> {
 
         if (testLabel.android) {
             this.waitUntilTestElementIsLoaded();
+        } else {
+            helper.waitUntilLayoutReady(testLabel);
         }
         const actualNative = labelTestsNative.getNativeBackgroundColor(testLabel);
 
@@ -479,6 +481,8 @@ export class LabelTest extends testModule.UITest<LabelModule.Label> {
         page.css = "label:disabled { background-color: " + expectedColor + "; }";
 
         view.isEnabled = false;
+
+        helper.waitUntilLayoutReady(view);
 
         let actualResult = labelTestsNative.getNativeBackgroundColor(view);
         TKUnit.assert(actualResult.hex === expectedNormalizedColor, "Actual: " + actualResult.hex + "; Expected: " + expectedNormalizedColor);
