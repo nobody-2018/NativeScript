@@ -1009,7 +1009,7 @@ type PropertyInterface = Property<ViewBase, any> | CssProperty<Style, any> | Css
 
 export function initNativeView(view: ViewBase): void {
     if (view._suspendedUpdates) {
-        applySuspendedNativeSetters(view);
+        applyPendingNativeSetters(view);
     } else {
         applyAllNativeSetters(view);
     }
@@ -1017,7 +1017,7 @@ export function initNativeView(view: ViewBase): void {
     view._suspendedUpdates = {};
 }
 
-export function applySuspendedNativeSetters(view: ViewBase): void {
+export function applyPendingNativeSetters(view: ViewBase): void {
     // TODO: Check what happens if a view was suspended and its value was reset, or set back to default!
     const suspendedUpdates = view._suspendedUpdates;
     for (var propertyName in suspendedUpdates) {

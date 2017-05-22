@@ -139,9 +139,9 @@ export abstract class ViewBase extends Observable implements ViewBaseDefinition 
     private _registeredAnimations: Array<KeyframeAnimation>;
     private _visualState: string;
     private _inlineStyleSelector: SelectorCore;
-    private __nativeView: any;
 
     public bindingContext: any;
+    public nativeView: any;
     public parent: ViewBase;
     public isCollapsed; // Default(false) set in prototype
 
@@ -244,27 +244,6 @@ export abstract class ViewBase extends Observable implements ViewBaseDefinition 
         this._inlineStyleSelector = value;
     }
 
-    get nativeView() {
-        return this.__nativeView;
-    }
-    set nativeView(newValue: any) {
-        if (this.__nativeView === newValue) {
-            return;
-        }
-
-        const oldValue = this.__nativeView;
-        this.__nativeView = newValue;
-
-        // This will force full update on native setters when resuming native updates.
-        this._suspendedUpdates = undefined;
-
-        if (oldValue && !newValue) {
-            this._suspendNativeUpdates();
-        } else if (!oldValue && newValue) {
-            this._resumeNativeUpdates();
-        }
-    }
-
     getViewById<T extends ViewBaseDefinition>(id: string): T {
         return <T>getViewById(this, id);
     }
@@ -285,6 +264,7 @@ export abstract class ViewBase extends Observable implements ViewBaseDefinition 
 
     public onLoaded() {
         this._isLoaded = true;
+        this._resumeNativeUpdates();
         this._loadEachChild();
         this._emit("loaded");
     }
@@ -297,6 +277,7 @@ export abstract class ViewBase extends Observable implements ViewBaseDefinition 
     }
 
     public onUnloaded() {
+        this._suspendNativeUpdates();
         this._unloadEachChild();
         this._isLoaded = false;
         this._emit("unloaded");
@@ -655,75 +636,74 @@ export abstract class ViewBase extends Observable implements ViewBaseDefinition 
     }
 
     public _setupUI(context: android.content.Context, atIndex?: number, parentIsLoaded?: boolean) {
-        try {
-            this._suspendNativeUpdates();
 
-            traceNotifyEvent(this, "_setupUI");
-            if (traceEnabled()) {
-                traceWrite(`${this}._setupUI(${context})`, traceCategories.VisualTreeEvents);
+        traceNotifyEvent(this, "_setupUI");
+        if (traceEnabled()) {
+            traceWrite(`${this}._setupUI(${context})`, traceCategories.VisualTreeEvents);
+        }
+
+        if (this._context === context) {
+            return;
+        }
+
+        this._context = context;
+        traceNotifyEvent(this, "_onContextChanged");
+
+        let currentNativeView = this.nativeView;
+        if (isAndroid) {
+            let nativeView: android.view.View;
+            if (this.recycleNativeView) {
+                nativeView = <android.view.View>getNativeView(context, this.typeName);
             }
 
-            if (this._context === context) {
-                return;
+            if (!nativeView) {
+                nativeView = <android.view.View>this.createNativeView();
             }
 
-            this._context = context;
-            traceNotifyEvent(this, "_onContextChanged");
-
-            let currentNativeView = this.nativeView;
-            if (isAndroid) {
-                let nativeView: android.view.View;
-                if (this.recycleNativeView) {
-                    nativeView = <android.view.View>getNativeView(context, this.typeName);
+            this._androidView = this.nativeView = nativeView;
+            if (nativeView) {
+                let result: android.graphics.Rect = (<any>nativeView).defaultPaddings;
+                if (result === undefined) {
+                    result = org.nativescript.widgets.ViewHelper.getPadding(nativeView);
+                    (<any>nativeView).defaultPaddings = result;
                 }
 
-                if (!nativeView) {
-                    nativeView = <android.view.View>this.createNativeView();
+                this._defaultPaddingTop = result.top;
+                this._defaultPaddingRight = result.right;
+                this._defaultPaddingBottom = result.bottom;
+                this._defaultPaddingLeft = result.left;
+
+                const style = this.style;
+                if (!paddingTopProperty.isSet(style)) {
+                    this.effectivePaddingTop = this._defaultPaddingTop;
                 }
-
-                this._androidView = this.nativeView = nativeView;
-                if (nativeView) {
-                    let result: android.graphics.Rect = (<any>nativeView).defaultPaddings;
-                    if (result === undefined) {
-                        result = org.nativescript.widgets.ViewHelper.getPadding(nativeView);
-                        (<any>nativeView).defaultPaddings = result;
-                    }
-
-                    this._defaultPaddingTop = result.top;
-                    this._defaultPaddingRight = result.right;
-                    this._defaultPaddingBottom = result.bottom;
-                    this._defaultPaddingLeft = result.left;
-
-                    const style = this.style;
-                    if (!paddingTopProperty.isSet(style)) {
-                        this.effectivePaddingTop = this._defaultPaddingTop;
-                    }
-                    if (!paddingRightProperty.isSet(style)) {
-                        this.effectivePaddingRight = this._defaultPaddingRight;
-                    }
-                    if (!paddingBottomProperty.isSet(style)) {
-                        this.effectivePaddingBottom = this._defaultPaddingBottom;
-                    }
-                    if (!paddingLeftProperty.isSet(style)) {
-                        this.effectivePaddingLeft = this._defaultPaddingLeft;
-                    }
+                if (!paddingRightProperty.isSet(style)) {
+                    this.effectivePaddingRight = this._defaultPaddingRight;
                 }
-            } else {
-                // TODO: Implement _createNativeView for iOS
-                const nativeView = this.createNativeView();
-                if (!currentNativeView && nativeView) {
-                    this.nativeView = this._iosView = nativeView;
+                if (!paddingBottomProperty.isSet(style)) {
+                    this.effectivePaddingBottom = this._defaultPaddingBottom;
+                }
+                if (!paddingLeftProperty.isSet(style)) {
+                    this.effectivePaddingLeft = this._defaultPaddingLeft;
                 }
             }
-
-            this.initNativeView();
-
-            if (this.parent) {
-                let nativeIndex = this.parent._childIndexToNativeChildIndex(atIndex);
-                this._isAddedToNativeVisualTree = this.parent._addViewToNativeVisualTree(this, nativeIndex);
+        } else {
+            // TODO: Implement _createNativeView for iOS
+            const nativeView = this.createNativeView();
+            if (!currentNativeView && nativeView) {
+                this.nativeView = this._iosView = nativeView;
             }
-        } finally {
-            // This may apply native setters.
+        }
+
+        this.initNativeView();
+
+        if (this.parent) {
+            let nativeIndex = this.parent._childIndexToNativeChildIndex(atIndex);
+            this._isAddedToNativeVisualTree = this.parent._addViewToNativeVisualTree(this, nativeIndex);
+        }
+
+        if (this.nativeView) {
+            this._suspendedUpdates = undefined;
             this._resumeNativeUpdates();
         }
 
@@ -731,6 +711,21 @@ export abstract class ViewBase extends Observable implements ViewBaseDefinition 
             child._setupUI(context);
             return true;
         });
+    }
+
+    setNativeView(value: any): void {
+        if (this.nativeView === value) {
+            return;
+        }
+
+        if (this.nativeView) {
+            this._suspendNativeUpdates();
+        }
+        this.nativeView = value;
+        if (this.nativeView) {
+            this._suspendedUpdates = undefined;
+            this._resumeNativeUpdates();
+        }
     }
 
     public _tearDownUI(force?: boolean) {
@@ -763,6 +758,10 @@ export abstract class ViewBase extends Observable implements ViewBaseDefinition 
         }
 
         this.disposeNativeView();
+
+        if (this.nativeView) {
+            this._suspendNativeUpdates();
+        }
 
         if (isAndroid) {
             this.nativeView = null;
@@ -841,12 +840,6 @@ export abstract class ViewBase extends Observable implements ViewBaseDefinition 
         } else if (this.shouldAddHandlerToParentBindingContextChanged) {
             newParent.on("bindingContextChange", this.bindingContextChanged, this);
             this.bindings.get("bindingContext").bind(newParent.bindingContext);
-        }
-
-        if (!newParent && oldParent) {
-            this._suspendNativeUpdates();
-        } else if (newParent && !oldParent) {
-            this._resumeNativeUpdates();
         }
     }
 

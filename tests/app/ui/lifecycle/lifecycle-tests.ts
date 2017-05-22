@@ -110,9 +110,6 @@ export function test_navigating_away_does_not_excessively_reset() {
     assert(1);
 
     const page2 = helper.navigateToModule("ui/lifecycle/pages/page-one");
-    buttons.forEach(button => {
-        console.log(`Counts: ${button} -> ${button.backgroundInternalSetNativeCount}, ${button.fontInternalSetNativeCount}, ${button.nativeBackgroundRedraws}`);
-    });
 
     helper.waitUntilLayoutReady(page2);
 

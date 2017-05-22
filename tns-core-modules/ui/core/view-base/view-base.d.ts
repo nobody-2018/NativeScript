@@ -137,6 +137,10 @@ export abstract class ViewBase extends Observable {
 
     public ios: any;
     public android: any;
+
+    /**
+     * read-only. If you want to set out-of-band the nativeView use the setNativeView method.
+     */
     public nativeView: any;
     public bindingContext: any;
     public recycleNativeView: boolean;
@@ -260,6 +264,13 @@ export abstract class ViewBase extends Observable {
      * Resets properties/listeners set to the native view.
      */
     resetNativeView(): void;
+
+    /**
+     * Set the nativeView field performing extra checks and updates to the native properties on the new view.
+     * Use in cases where the createNativeView is not suitable.
+     * As an example use in item controls where the native parent view will create the native views for child items.
+     */
+    setNativeView(view: any): void;
 
     _isAddedToNativeVisualTree: boolean;
 
